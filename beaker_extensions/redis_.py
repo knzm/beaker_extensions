@@ -4,6 +4,7 @@ from beaker.exceptions import InvalidCacheBackendError
 from beaker_extensions.nosql import Container
 from beaker_extensions.nosql import NoSqlManager
 from beaker_extensions.nosql import pickle
+from beaker.util import SyncDict
 
 try:
     from redis import Redis
@@ -13,11 +14,13 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 class RedisManager(NoSqlManager):
+    clients = SyncDict()
+
     def __init__(self, namespace, url=None, data_dir=None, lock_dir=None, **params):
         NoSqlManager.__init__(self, namespace, url=url, data_dir=data_dir, lock_dir=lock_dir, **params)
 
     def open_connection(self, host, port, **params):
-        self.db_conn = Redis(host=host, port=int(port), **params)
+        self.db_conn = RedisManager.clients.get((host, int(port), tuple(sorted(params.items()))), Redis, host=host, port=int(port), **params)
 
     def __contains__(self, key):
         log.debug('%s contained in redis cache (as %s) : %s'%(key, self._format_key(key), self.db_conn.exists(self._format_key(key))))
